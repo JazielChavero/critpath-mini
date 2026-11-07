@@ -7,6 +7,6 @@ files, so they are not committed. Download them into this folder:
 |---|---|
 | `airport.xer` | [JaiLaff/XER-Splitter](https://github.com/JaiLaff/XER-Splitter/tree/master/tests/Example-XERs) |
 | `rehab-2.xer` | [JaiLaff/XER-Splitter](https://github.com/JaiLaff/XER-Splitter/tree/master/tests/Example-XERs) |
-| `sample.xer`  | [ASHspace/PrimeveraXEREditor](https://github.com/ASHspace/PrimeveraXEREditor/tree/master/src/test/java/resources) |
+| `sample.xer`  | [ASHspace/PrimeveraXEREditor](https://github.com/ASHspace/PrimeveraXEREditor/tree/main/src/test/java/resources) |
 
 Without them, those three tests are skipped and everything else still runs.
