@@ -6,6 +6,7 @@ import { CriticalTable } from "./CriticalTable";
 import { IssueList } from "./IssueList";
 import { MetricRows } from "./MetricRows";
 import { ProgressBar } from "./ProgressBar";
+import { Summary } from "./Summary";
 import { Timeline } from "./Timeline";
 
 const n = (v: unknown) => (typeof v === "number" ? v : 0);
@@ -26,9 +27,10 @@ function verdict(p: ProjectMetrics, t: ReturnType<typeof useI18n>["t"], lang: Re
 interface Props {
   data: MetricsResponse;
   warnings: Issue[];
+  onAuthError: () => void;
 }
 
-export function Dashboard({ data, warnings }: Props) {
+export function Dashboard({ data, warnings, onAuthError }: Props) {
   const { t, lang } = useI18n();
   const [projectIdx, setProjectIdx] = useState(0);
   const p = data.projects[projectIdx] ?? data.projects[0];
@@ -68,6 +70,8 @@ export function Dashboard({ data, warnings }: Props) {
         notStarted={n(v.not_started)}
         percentByDuration={typeof v.percent_complete_duration === "number" ? v.percent_complete_duration : null}
       />
+
+      <Summary updateId={data.update.id} projectId={p.projectId} onAuthError={onAuthError} />
 
       <div className="metric-columns">
         <MetricRows

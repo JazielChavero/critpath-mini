@@ -4,6 +4,7 @@
  */
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { AiServiceUnavailable, type Summary } from "../src/ai/summaryClient.js";
 import { buildApp } from "../src/app.js";
 import { hashPassword } from "../src/auth/passwords.js";
 import { migrate } from "../src/db/importSchedule.js";
@@ -29,6 +30,12 @@ describe.skipIf(!url)("HTTP API", () => {
   let pool: pg.Pool;
   let app: Awaited<ReturnType<typeof buildApp>>;
   let token: string;
+  const summaryCalls: string[] = [];
+  const fakeSummarize = async (p: { projectName: string; values: Record<string, unknown> }, lang: "en" | "es"): Promise<Summary> => {
+    summaryCalls.push(lang);
+    const text = `${p.projectName}: ${p.values.critical_activities} critical (${lang})`;
+    return { text, segments: [{ text }], source: "ai", model: "fake", attempts: [{ ok: true, problems: [] }], reason: null, reasonCode: null };
+  };
   const auth = () => ({ authorization: `Bearer ${token}` });
   const upload = (content: string | Uint8Array, o: { filename?: string; field?: string; query?: string } = {}) => {
     const m = multipart(content, o.filename, o.field);
@@ -43,7 +50,7 @@ describe.skipIf(!url)("HTTP API", () => {
       "jaziel@example.com",
       await hashPassword("correct horse battery"),
     ]);
-    app = await buildApp({ pool, jwtSecret: "x".repeat(40), maxUploadBytes: 1024 * 1024 });
+    app = await buildApp({ pool, jwtSecret: "x".repeat(40), maxUploadBytes: 1024 * 1024, summarize: fakeSummarize });
   });
   afterAll(async () => {
     await app?.close();
@@ -154,6 +161,37 @@ describe.skipIf(!url)("HTTP API", () => {
     it("404 for an update that does not exist, 400 for a bad id", async () => {
       expect((await app.inject({ method: "GET", url: "/api/updates/999/metrics", headers: auth() })).statusCode).toBe(404);
       expect((await app.inject({ method: "GET", url: "/api/updates/abc/metrics", headers: auth() })).statusCode).toBe(400);
+    });
+  });
+  describe("summary", () => {
+    it("asks the AI service with the computed metrics, then serves it from the cache", async () => {
+      const first = await app.inject({ method: "GET", url: "/api/updates/1/summary?lang=en", headers: auth() });
+      expect(first.statusCode).toBe(200);
+      expect(first.json()).toMatchObject({ text: "TORRE-A: 1 critical (en)", source: "ai", cached: false });
+      const second = await app.inject({ method: "GET", url: "/api/updates/1/summary?lang=en", headers: auth() });
+      expect(second.json().cached).toBe(true);
+      expect(summaryCalls).toEqual(["en"]);
+    });
+
+    it("keeps one summary per language and regenerates on request", async () => {
+      await app.inject({ method: "GET", url: "/api/updates/1/summary?lang=es", headers: auth() });
+      const again = await app.inject({ method: "GET", url: "/api/updates/1/summary?lang=en&refresh=1", headers: auth() });
+      expect(again.json().cached).toBe(false);
+      expect(summaryCalls).toEqual(["en", "es", "en"]);
+    });
+
+    it("answers 503 with a clear message when the AI service is down", async () => {
+      const down = await buildApp({
+        pool,
+        jwtSecret: "x".repeat(40),
+        summarize: async () => {
+          throw new AiServiceUnavailable("The summary service is not running.");
+        },
+      });
+      const r = await down.inject({ method: "GET", url: "/api/updates/1/summary?lang=en&refresh=1", headers: auth() });
+      expect(r.statusCode).toBe(503);
+      expect(r.json().error).toBe("The summary service is not running.");
+      await down.close();
     });
   });
 });

@@ -143,7 +143,7 @@ function Main() {
           </p>
         ) : metrics ? (
           <div className={loading ? "is-refreshing" : ""}>
-            <Dashboard key={metrics.update.id} data={metrics} warnings={warnings} />
+            <Dashboard key={metrics.update.id} data={metrics} warnings={warnings} onAuthError={() => setLoggedIn(false)} />
           </div>
         ) : null}
       </main>

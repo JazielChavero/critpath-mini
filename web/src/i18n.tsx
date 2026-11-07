@@ -85,6 +85,17 @@ const en = {
   issueFile: "File",
   issuesMore: "And {n} more.",
   messagesInEnglish: "",
+
+  summaryTitle: "Summary",
+  summaryRegenerate: "Write again",
+  summaryWriting: "Writing the summary…",
+  summaryUnavailable: "The summary isn't available.",
+  summaryByAi: "Written by {model}. Every number in it was inserted by the software from the metrics above; the model can't type numbers.",
+  summaryByTemplate: "Written from a fixed template, without AI ({reason}). Every number comes from the metrics above.",
+  summaryRetried: "Drafts rejected by the number check before this one: {n}.",
+  reasonNoModel: "no AI key is configured",
+  reasonModelError: "the AI service could not be reached",
+  reasonAllRejected: "every AI draft was rejected by the number check",
 };
 
 type Dict = typeof en;
@@ -167,6 +178,17 @@ const es: Dict = {
   issueFile: "Archivo",
   issuesMore: "Y {n} más.",
   messagesInEnglish: "Los detalles de los problemas del archivo están en inglés.",
+
+  summaryTitle: "Resumen",
+  summaryRegenerate: "Escribir de nuevo",
+  summaryWriting: "Escribiendo el resumen…",
+  summaryUnavailable: "El resumen no está disponible.",
+  summaryByAi: "Escrito por {model}. Cada número lo insertó el software a partir de las métricas de arriba; el modelo no puede escribir números.",
+  summaryByTemplate: "Escrito con una plantilla fija, sin IA ({reason}). Cada número sale de las métricas de arriba.",
+  summaryRetried: "Borradores rechazados por la revisión de números antes de este: {n}.",
+  reasonNoModel: "no hay una llave de IA configurada",
+  reasonModelError: "no se pudo contactar al servicio de IA",
+  reasonAllRejected: "la revisión de números rechazó todos los borradores de la IA",
 };
 
 const DICTS: Record<Lang, Dict> = { en, es };

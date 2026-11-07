@@ -58,6 +58,17 @@ export interface MetricsResponse {
   projects: ProjectMetrics[];
 }
 
+export interface SummaryResponse {
+  text: string;
+  segments: { text: string; fact?: string | null; label?: string | null }[];
+  source: "ai" | "template";
+  model: string | null;
+  attempts: { ok: boolean; problems: string[] }[];
+  reason: string | null;
+  reasonCode: "no_model" | "model_error" | "all_rejected" | null;
+  cached: boolean;
+}
+
 export type UploadResult =
   | { kind: "ok"; updateId: number; activities: number; warnings: Issue[] }
   | { kind: "duplicate"; existingUpdateId: number; message: string }
@@ -116,6 +127,10 @@ export async function login(email: string, password: string): Promise<void> {
 
 export const listUpdates = () => request<{ updates: UpdateSummary[] }>("/updates").then((r) => r.updates);
 export const getMetrics = (id: number) => request<MetricsResponse>(`/updates/${id}/metrics`);
+export const getSummary = (id: number, projectId: string, lang: string, refresh = false) =>
+  request<SummaryResponse>(
+    `/updates/${id}/summary?lang=${lang}&project=${encodeURIComponent(projectId)}${refresh ? "&refresh=1" : ""}`,
+  );
 export const getWarnings = (id: number) => request<{ warnings: Issue[] }>(`/updates/${id}/warnings`).then((r) => r.warnings);
 
 export async function uploadSchedule(file: File, encoding?: string): Promise<UploadResult> {

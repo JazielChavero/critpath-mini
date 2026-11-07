@@ -110,3 +110,16 @@ CREATE TABLE IF NOT EXISTS users (
 -- bytes with a different encoding (to fix names) is a new, valid update.
 ALTER TABLE schedule_updates DROP CONSTRAINT IF EXISTS schedule_updates_file_sha256_key;
 CREATE UNIQUE INDEX IF NOT EXISTS schedule_updates_file_encoding_key ON schedule_updates (file_sha256, encoding);
+
+-- Added on day 4 ---------------------------------------------------------------
+
+-- Summaries are cached per update, project and language so the model is only
+-- paid for once. "Regenerate" replaces the row.
+CREATE TABLE IF NOT EXISTS summaries (
+  update_id     INTEGER     NOT NULL REFERENCES schedule_updates(id) ON DELETE CASCADE,
+  project_p6_id TEXT        NOT NULL,
+  lang          TEXT        NOT NULL CHECK (lang IN ('en', 'es')),
+  payload       JSONB       NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (update_id, project_p6_id, lang)
+);

@@ -3,8 +3,8 @@
 A small learning project: upload a Primavera P6 schedule (`.xer`), get trustworthy
 metrics and a written summary that never invents a number.
 
-**Status — day 3 of 5:** XER parser, PostgreSQL import, metrics, HTTP API and the
-React dashboard are done. AI summary and AWS deployment come next.
+**Status — day 4 of 5:** XER parser, PostgreSQL import, metrics, HTTP API, React
+dashboard (English/Spanish) and the AI summary are done. AWS deployment comes next.
 
 ## Why the parser is built this way
 
@@ -74,6 +74,29 @@ convention: red is critical. Works on phones; Arabic/Hebrew names render right-t
 In development the dashboard runs on Vite (:5173) and proxies `/api` to the API.
 In production the API serves the built dashboard itself, so it is one service.
 
+## AI summary (`ai/`, Python + FastAPI)
+
+The model writes the prose; it never writes a number.
+
+1. The Node API computes the metrics and sends them to the AI service.
+2. The service turns every value into a named fact, already formatted
+   (`{{critical_activities}}` → "253"). Phrases whose direction matters
+   ("0.6 days ahead of the baseline") are built by code too.
+3. The model must write numbers, dates, codes and names only as placeholders.
+4. A validator rejects any draft with a digit, a number written as a word
+   ("two hundred", "doscientos", "half"), an unknown placeholder or a broken one,
+   or no mention of the forecast finish. The reasons go back to the model, up to
+   3 drafts.
+5. Accepted drafts get the placeholders replaced by the computed text. If no draft
+   is accepted, or there is no API key, a fixed template is used and the UI says so.
+
+So every number the user reads was put there by our code. Tests prove it, including
+one that checks every number in every output against the computed facts. What the
+validator cannot check is wording without numbers; the prompt forbids vague
+quantifiers ("most", "few") and causes, but that part relies on the model.
+
+Summaries are cached per update, project and language; "Write again" regenerates.
+
 ## Run it
 
 Requires Node.js 22+ and PostgreSQL 14+.
@@ -94,6 +117,13 @@ cd ../web
 npm install
 npm run dev                        # dashboard on http://localhost:5173 (development)
 npm run build                      # or build it once; the API then serves it on :3000
+
+cd ../ai
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt     # Windows: .venv\Scripts\pip
+cp .env.example .env                          # optional: ANTHROPIC_API_KEY
+.venv/bin/python -m pytest
+.venv/bin/python -m uvicorn app.main:app --port 8001 --env-file .env
 ```
 
 ## Layout
@@ -113,4 +143,11 @@ api/
   src/cli/                  inspect / import / create-user commands
   tests/                    unit, golden, database and API tests
 tools/independent_metrics.py  independent check of the metrics
+ai/
+  app/facts.py              computed values -> formatted facts
+  app/validate.py           the number check
+  app/summarize.py          drafts, retries, fallback
+  app/template.py           deterministic summary
+  app/writer.py             Claude (Anthropic SDK)
+  tests/                    pytest
 ```

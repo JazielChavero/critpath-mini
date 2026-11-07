@@ -8,6 +8,7 @@
  *   POST /api/updates                multipart upload, field "file" (.xer)
  *   GET  /api/updates/:id/metrics    metrics + formula table
  *   GET  /api/updates/:id/warnings   warnings found while importing
+ *   GET  /api/updates/:id/summary    AI summary (?lang=en|es&project=&refresh=1)
  */
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -17,6 +18,7 @@ import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import type pg from "pg";
 import { DUMMY_HASH, verifyPassword } from "./auth/passwords.js";
+import { AiServiceUnavailable, httpSummarizer, type SummarizeFn } from "./ai/summaryClient.js";
 import { importXer } from "./db/importSchedule.js";
 import { loadSchedule } from "./db/loadSchedule.js";
 import { computeMetrics } from "./metrics/compute.js";
@@ -30,6 +32,8 @@ export interface AppOptions {
   logger?: boolean;
   /** Folder with the built dashboard (index.html). Optional. */
   webDir?: string;
+  /** Writes the AI summary. Defaults to the Python service at AI_SERVICE_URL. */
+  summarize?: SummarizeFn;
 }
 
 /** Encodings a user may force on upload (P6 exports in the Windows code page). */
@@ -47,6 +51,8 @@ export async function buildApp(opts: AppOptions) {
     throw new Error("JWT_SECRET must be at least 32 characters long.");
   }
   const { pool } = opts;
+  const summarize =
+    opts.summarize ?? httpSummarizer(process.env.AI_SERVICE_URL ?? "http://127.0.0.1:8001", process.env.AI_SERVICE_TOKEN);
   const app = Fastify({ logger: opts.logger ?? false });
 
   await app.register(fastifyJwt, { secret: opts.jwtSecret, sign: { expiresIn: "12h" } });
@@ -167,6 +173,41 @@ export async function buildApp(opts: AppOptions) {
         projects: s.projects.map((p) => computeMetrics(p, s.tasks, s.relationships)),
       };
     });
+
+    api.get<{ Params: { id: string }; Querystring: { lang?: string; project?: string; refresh?: string } }>(
+      "/updates/:id/summary",
+      { preHandler: requireUser },
+      async (req, reply) => {
+        const id = parseId(req.params.id, reply);
+        if (id === null) return;
+        const lang = req.query.lang === "es" ? "es" : "en";
+        const s = await loadSchedule(pool, id);
+        const project = s.projects.find((p) => p.id === req.query.project) ?? s.projects[0];
+        if (!project) return reply.code(404).send({ error: "Update not found." });
+
+        if (req.query.refresh !== "1") {
+          const cached = await pool.query(
+            "SELECT payload FROM summaries WHERE update_id = $1 AND project_p6_id = $2 AND lang = $3",
+            [id, project.id, lang],
+          );
+          if (cached.rows[0]) return { ...cached.rows[0].payload, cached: true };
+        }
+
+        let summary;
+        try {
+          summary = await summarize(computeMetrics(project, s.tasks, s.relationships), lang);
+        } catch (err) {
+          if (err instanceof AiServiceUnavailable) return reply.code(503).send({ error: err.message });
+          throw err;
+        }
+        await pool.query(
+          `INSERT INTO summaries (update_id, project_p6_id, lang, payload) VALUES ($1, $2, $3, $4)
+           ON CONFLICT (update_id, project_p6_id, lang) DO UPDATE SET payload = EXCLUDED.payload, created_at = now()`,
+          [id, project.id, lang, summary],
+        );
+        return { ...summary, cached: false };
+      },
+    );
 
     api.get<{ Params: { id: string } }>("/updates/:id/warnings", { preHandler: requireUser }, async (req, reply) => {
       const id = parseId(req.params.id, reply);

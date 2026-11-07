@@ -508,6 +508,44 @@ select {
   vertical-align: -1px;
 }
 
+/* ---- Summary -------------------------------------------------------------- */
+.summary {
+  border-left: 3px solid var(--graphite);
+  padding-left: 1.25rem;
+}
+.summary .section-head {
+  justify-content: space-between;
+}
+.summary-text {
+  font-size: var(--t-md);
+  line-height: 1.55;
+  max-width: 62ch;
+}
+/* Computed values inside the prose: quietly marked, explained on hover/focus. */
+.fact {
+  background: none;
+  color: inherit;
+  font-weight: 600;
+  border-bottom: 1.5px dotted var(--steel);
+  cursor: help;
+}
+.fact:focus-visible {
+  outline-offset: 1px;
+}
+.summary-status {
+  color: var(--ink-2);
+}
+.summary-error {
+  color: var(--critical);
+}
+.summary .note {
+  max-width: 62ch;
+}
+.btn-small {
+  padding: 0.2rem 0.7rem;
+  font-size: var(--t-sm);
+}
+
 /* ---- Metric rows ---------------------------------------------------------- */
 .metric-columns {
   display: grid;
