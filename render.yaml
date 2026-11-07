@@ -1,0 +1,21 @@
+# Render Blueprint: one Docker web service on the free plan.
+# The database is external (Neon free tier); paste its URL as DATABASE_URL.
+services:
+  - type: web
+    name: critpath-mini
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false # asked for when the Blueprint is created
+      - key: JWT_SECRET
+        generateValue: true
+      - key: TRUST_PROXY
+        value: "1"
+      - key: ANTHROPIC_API_KEY
+        sync: false # optional; leave empty to use the template summary
+      - key: AI_MODEL
+        value: claude-haiku-5-5

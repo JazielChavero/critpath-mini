@@ -13,6 +13,8 @@ const app = await buildApp({
   pool,
   jwtSecret: process.env.JWT_SECRET ?? "",
   logger: true,
+  // Set TRUST_PROXY=1 when running behind a platform proxy or load balancer (Render, AWS ALB, Caddy).
+  trustProxy: process.env.TRUST_PROXY === "1",
   webDir: fileURLToPath(new URL("../../web/dist", import.meta.url)),
 });
 

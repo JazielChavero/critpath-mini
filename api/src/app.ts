@@ -12,8 +12,10 @@
  */
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import fastifyHelmet from "@fastify/helmet";
 import fastifyJwt from "@fastify/jwt";
 import fastifyMultipart from "@fastify/multipart";
+import fastifyRateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
 import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import type pg from "pg";
@@ -34,6 +36,10 @@ export interface AppOptions {
   webDir?: string;
   /** Writes the AI summary. Defaults to the Python service at AI_SERVICE_URL. */
   summarize?: SummarizeFn;
+  /** Failed-or-not login attempts allowed per IP every 15 minutes (default 10). */
+  loginAttemptsPer15Min?: number;
+  /** Behind a load balancer / platform proxy, read the client IP from X-Forwarded-For. */
+  trustProxy?: boolean;
 }
 
 /** Encodings a user may force on upload (P6 exports in the Windows code page). */
@@ -53,7 +59,12 @@ export async function buildApp(opts: AppOptions) {
   const { pool } = opts;
   const summarize =
     opts.summarize ?? httpSummarizer(process.env.AI_SERVICE_URL ?? "http://127.0.0.1:8001", process.env.AI_SERVICE_TOKEN);
-  const app = Fastify({ logger: opts.logger ?? false });
+  const app = Fastify({ logger: opts.logger ?? false, trustProxy: opts.trustProxy ?? false });
+
+  // Security headers (Content-Security-Policy, no sniffing, frame protection, ...).
+  await app.register(fastifyHelmet);
+  // Rate limits are set per route (login, upload), not globally.
+  await app.register(fastifyRateLimit, { global: false });
 
   await app.register(fastifyJwt, { secret: opts.jwtSecret, sign: { expiresIn: "12h" } });
   await app.register(fastifyMultipart, { limits: { fileSize: opts.maxUploadBytes ?? 50 * 1024 * 1024, files: 1 } });
@@ -81,7 +92,8 @@ export async function buildApp(opts: AppOptions) {
     api.get("/health", async () => ({ ok: true }));
 
     // ---- Auth -------------------------------------------------------------------
-    api.post<{ Body: { email?: unknown; password?: unknown } }>("/auth/login", async (req, reply) => {
+    const loginLimit = { rateLimit: { max: opts.loginAttemptsPer15Min ?? 10, timeWindow: "15 minutes" } };
+    api.post<{ Body: { email?: unknown; password?: unknown } }>("/auth/login", { config: loginLimit }, async (req, reply) => {
       const { email, password } = req.body ?? {};
       if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
         return reply.code(400).send({ error: "Email and password are required." });
@@ -110,7 +122,8 @@ export async function buildApp(opts: AppOptions) {
       return { updates: rows };
     });
 
-    api.post<{ Querystring: { encoding?: string } }>("/updates", { preHandler: requireUser }, async (req, reply) => {
+    const uploadLimit = { rateLimit: { max: 30, timeWindow: "1 hour" } };
+    api.post<{ Querystring: { encoding?: string } }>("/updates", { preHandler: requireUser, config: uploadLimit }, async (req, reply) => {
       const encoding = req.query.encoding;
       if (encoding && !ALLOWED_ENCODINGS.includes(encoding)) {
         return reply.code(400).send({ error: `Unsupported encoding. Use one of: ${ALLOWED_ENCODINGS.join(", ")}.` });

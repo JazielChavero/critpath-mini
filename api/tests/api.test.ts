@@ -194,4 +194,21 @@ describe.skipIf(!url)("HTTP API", () => {
       await down.close();
     });
   });
+  describe("security", () => {
+    it("limits login attempts per IP", async () => {
+      const limited = await buildApp({ pool, jwtSecret: "x".repeat(40), loginAttemptsPer15Min: 3, summarize: fakeSummarize });
+      const attempt = () =>
+        limited.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jaziel@example.com", password: "guess" } });
+      expect([(await attempt()).statusCode, (await attempt()).statusCode, (await attempt()).statusCode]).toEqual([401, 401, 401]);
+      expect((await attempt()).statusCode).toBe(429);
+      await limited.close();
+    });
+
+    it("sends security headers", async () => {
+      const r = await app.inject({ method: "GET", url: "/api/health" });
+      expect(r.headers["x-content-type-options"]).toBe("nosniff");
+      expect(r.headers["content-security-policy"]).toContain("default-src 'self'");
+      expect(r.headers["x-frame-options"]).toBe("SAMEORIGIN");
+    });
+  });
 });

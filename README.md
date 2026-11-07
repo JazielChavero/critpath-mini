@@ -3,8 +3,10 @@
 A small learning project: upload a Primavera P6 schedule (`.xer`), get trustworthy
 metrics and a written summary that never invents a number.
 
-**Status — day 4 of 5:** XER parser, PostgreSQL import, metrics, HTTP API, React
-dashboard (English/Spanish) and the AI summary are done. AWS deployment comes next.
+Built in five days as a learning project: XER parser, PostgreSQL import, metrics
+checked against an independent implementation, HTTP API, React dashboard
+(English/Spanish), an AI summary that cannot invent numbers, and a Docker image
+ready for Render or AWS (see [DEPLOY.md](DEPLOY.md)).
 
 ## Why the parser is built this way
 
@@ -50,8 +52,10 @@ All routes are under `/api`.
 | GET | `/updates/:id/metrics` | metrics per project + the formula table |
 | GET | `/updates/:id/warnings` | warnings found on import |
 
-Passwords are hashed with scrypt; unknown emails and wrong passwords get the same
-answer in the same time.
+Security basics: passwords hashed with scrypt; unknown emails and wrong passwords get
+the same answer in the same time; 10 login attempts per IP every 15 minutes; upload
+size and rate limits; security headers (CSP, no sniffing, frame protection); the AI
+service only listens inside the container and requires a shared token.
 
 ## Checked against real files
 
