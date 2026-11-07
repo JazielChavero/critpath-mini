@@ -3,8 +3,8 @@
 A small learning project: upload a Primavera P6 schedule (`.xer`), get trustworthy
 metrics and a written summary that never invents a number.
 
-**Status — day 2 of 5:** XER parser, PostgreSQL import, metrics and the HTTP API
-(login, upload, metrics) are done. Dashboard, AI summary and AWS deployment come next.
+**Status — day 3 of 5:** XER parser, PostgreSQL import, metrics, HTTP API and the
+React dashboard are done. AI summary and AWS deployment come next.
 
 ## Why the parser is built this way
 
@@ -39,6 +39,8 @@ Known limitations:
 
 ## API
 
+All routes are under `/api`.
+
 | Method | Path | |
 |---|---|---|
 | GET | `/health` | no login |
@@ -61,6 +63,17 @@ The golden tests compare the parser with totals counted by a separate script:
 | sample.xer | 20.12 | 52 | 61 | 0 | 0 |
 | rehab-2.xer | 6.0.0 | 6,977 | 10,730 | 2,037 | 176 |
 
+## Dashboard
+
+React + TypeScript (Vite) in `web/`. It opens with one sentence about the finish date,
+then a timeline drawn the way P6 draws it (planned start, dashed data-date line,
+baseline vs. forecast finish), progress by status, the metrics as rows (click any
+metric to see its formula) and the critical activities. Colours follow the P6 Gantt
+convention: red is critical. Works on phones; Arabic/Hebrew names render right-to-left.
+
+In development the dashboard runs on Vite (:5173) and proxies `/api` to the API.
+In production the API serves the built dashboard itself, so it is one service.
+
 ## Run it
 
 Requires Node.js 22+ and PostgreSQL 14+.
@@ -76,6 +89,11 @@ npm run import  -- samples/*.xer   # import from the command line
 
 npm run create-user -- you@example.com
 npm run dev                        # API on http://localhost:3000
+
+cd ../web
+npm install
+npm run dev                        # dashboard on http://localhost:5173 (development)
+npm run build                      # or build it once; the API then serves it on :3000
 ```
 
 ## Layout

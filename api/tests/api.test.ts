@@ -32,7 +32,7 @@ describe.skipIf(!url)("HTTP API", () => {
   const auth = () => ({ authorization: `Bearer ${token}` });
   const upload = (content: string | Uint8Array, o: { filename?: string; field?: string; query?: string } = {}) => {
     const m = multipart(content, o.filename, o.field);
-    return app.inject({ method: "POST", url: `/updates${o.query ?? ""}`, payload: m.payload, headers: { ...m.headers, ...auth() } });
+    return app.inject({ method: "POST", url: `/api/updates${o.query ?? ""}`, payload: m.payload, headers: { ...m.headers, ...auth() } });
   };
 
   beforeAll(async () => {
@@ -52,8 +52,8 @@ describe.skipIf(!url)("HTTP API", () => {
 
   describe("login", () => {
     it("rejects a wrong password and an unknown email with the same message", async () => {
-      const wrong = await app.inject({ method: "POST", url: "/auth/login", payload: { email: "jaziel@example.com", password: "nope" } });
-      const unknown = await app.inject({ method: "POST", url: "/auth/login", payload: { email: "who@example.com", password: "nope" } });
+      const wrong = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "jaziel@example.com", password: "nope" } });
+      const unknown = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "who@example.com", password: "nope" } });
       expect(wrong.statusCode).toBe(401);
       expect(unknown.statusCode).toBe(401);
       expect(wrong.json()).toEqual(unknown.json());
@@ -62,7 +62,7 @@ describe.skipIf(!url)("HTTP API", () => {
     it("returns a token for the right password (email is case-insensitive)", async () => {
       const r = await app.inject({
         method: "POST",
-        url: "/auth/login",
+        url: "/api/auth/login",
         payload: { email: "Jaziel@Example.com", password: "correct horse battery" },
       });
       expect(r.statusCode).toBe(200);
@@ -71,11 +71,11 @@ describe.skipIf(!url)("HTTP API", () => {
     });
 
     it("protects every data route", async () => {
-      for (const u of ["/updates", "/updates/1/metrics", "/updates/1/warnings"]) {
+      for (const u of ["/api/updates", "/api/updates/1/metrics", "/api/updates/1/warnings"]) {
         const r = await app.inject({ method: "GET", url: u });
         expect(r.statusCode, u).toBe(401);
       }
-      const bad = await app.inject({ method: "GET", url: "/updates", headers: { authorization: "Bearer forged.token.here" } });
+      const bad = await app.inject({ method: "GET", url: "/api/updates", headers: { authorization: "Bearer forged.token.here" } });
       expect(bad.statusCode).toBe(401);
     });
   });
@@ -91,6 +91,14 @@ describe.skipIf(!url)("HTTP API", () => {
       const r = await upload(xer(), { filename: "copy.xer" });
       expect(r.statusCode).toBe(409);
       expect(r.json().existingUpdateId).toBe(1);
+    });
+
+    it("accepts the same file again when read with a different encoding", async () => {
+      const r = await upload(xer(), { filename: "torre-a-1256.xer", query: "?encoding=windows-1256" });
+      expect(r.statusCode).toBe(201);
+      expect(r.json().updateId).toBe(2);
+      const again = await upload(xer(), { query: "?encoding=windows-1256" });
+      expect(again.statusCode).toBe(409);
     });
 
     it("explains why a broken file was rejected, with the line number", async () => {
@@ -119,8 +127,9 @@ describe.skipIf(!url)("HTTP API", () => {
     });
 
     it("lists uploads", async () => {
-      const r = await app.inject({ method: "GET", url: "/updates", headers: auth() });
+      const r = await app.inject({ method: "GET", url: "/api/updates", headers: auth() });
       expect(r.json().updates).toEqual([
+        expect.objectContaining({ id: 2, file_name: "torre-a-1256.xer" }),
         expect.objectContaining({ id: 1, file_name: "torre-a.xer", project: "TORRE-A", data_date: "2024-03-01T00:00:00", activities: 2 }),
       ]);
     });
@@ -128,7 +137,7 @@ describe.skipIf(!url)("HTTP API", () => {
 
   describe("metrics", () => {
     it("computes metrics from what was stored", async () => {
-      const r = await app.inject({ method: "GET", url: "/updates/1/metrics", headers: auth() });
+      const r = await app.inject({ method: "GET", url: "/api/updates/1/metrics", headers: auth() });
       expect(r.statusCode).toBe(200);
       const body = r.json();
       expect(body.definitions.length).toBeGreaterThan(10);
@@ -143,8 +152,8 @@ describe.skipIf(!url)("HTTP API", () => {
     });
 
     it("404 for an update that does not exist, 400 for a bad id", async () => {
-      expect((await app.inject({ method: "GET", url: "/updates/999/metrics", headers: auth() })).statusCode).toBe(404);
-      expect((await app.inject({ method: "GET", url: "/updates/abc/metrics", headers: auth() })).statusCode).toBe(400);
+      expect((await app.inject({ method: "GET", url: "/api/updates/999/metrics", headers: auth() })).statusCode).toBe(404);
+      expect((await app.inject({ method: "GET", url: "/api/updates/abc/metrics", headers: auth() })).statusCode).toBe(400);
     });
   });
 });

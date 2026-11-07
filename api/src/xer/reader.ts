@@ -165,7 +165,7 @@ export function readXer(buf: Uint8Array, opts: { encoding?: string } = {}): RawX
         if (values.length !== current.fields.length) {
           issues.error(
             "ROW_FIELD_COUNT",
-            `Row has ${values.length} values but table ${current.name} has ${current.fields.length} columns. ` +
+            `Row has ${plural(values.length, "value")} but table ${current.name} has ${plural(current.fields.length, "column")}. ` +
               `The file may be truncated or edited by hand.`,
             { line: lineNo, table: current.name },
           );
@@ -195,3 +195,5 @@ export function readXer(buf: Uint8Array, opts: { encoding?: string } = {}): RawX
 
   return { header, tables, encoding, issues };
 }
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;

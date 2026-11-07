@@ -34,11 +34,17 @@ export async function importXer(
   const parsed = parseXer(buf, { encoding: opts.encoding });
   if (!parsed.ok) return { ok: false, reason: "invalid_file", errors: parsed.errors, warnings: parsed.warnings };
 
-  const sha = createHash("sha256").update(buf).digest("hex");
-  const existing = await pool.query<{ id: number }>("SELECT id FROM schedule_updates WHERE file_sha256 = $1", [sha]);
-  if (existing.rows[0]) return { ok: false, reason: "duplicate", existingUpdateId: existing.rows[0].id };
-
   const { schedule: s, header, encoding, warnings } = parsed;
+
+  // Same bytes read with the same encoding = same data. Same bytes with another
+  // encoding is allowed (e.g. re-uploading to fix Arabic or Greek names).
+  const sha = createHash("sha256").update(buf).digest("hex");
+  const findDuplicate = async () =>
+    (await pool.query<{ id: number }>("SELECT id FROM schedule_updates WHERE file_sha256 = $1 AND encoding = $2", [sha, encoding]))
+      .rows[0]?.id;
+  const existingId = await findDuplicate();
+  if (existingId) return { ok: false, reason: "duplicate", existingUpdateId: existingId };
+
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -129,6 +135,11 @@ export async function importXer(
     return { ok: true, updateId, tasks: t.length, relationships: r.length, warnings };
   } catch (err) {
     await client.query("ROLLBACK");
+    // Two identical uploads at the same moment: the unique index lets only one in.
+    if ((err as { code?: string }).code === "23505") {
+      const id = await findDuplicate();
+      if (id) return { ok: false, reason: "duplicate", existingUpdateId: id };
+    }
     throw err;
   } finally {
     client.release();

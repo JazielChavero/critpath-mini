@@ -19,6 +19,8 @@ export interface ActivityRef {
 export interface MetricsResult {
   projectId: string;
   projectName: string;
+  /** Project planned start (for the timeline; not a metric). */
+  plannedStart: string | null;
   values: Record<MetricKey, MetricValue>;
   /** Used to convert float from hours to days. */
   hoursPerDay: number;
@@ -129,6 +131,7 @@ export function computeMetrics(project: Project, allTasks: Task[], relationships
   return {
     projectId: project.id,
     projectName: project.shortName,
+    plannedStart: project.plannedStart,
     values,
     hoursPerDay,
     hoursPerDayAssumed: project.calendarHoursPerDay === null,

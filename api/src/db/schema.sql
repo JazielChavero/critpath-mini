@@ -103,3 +103,10 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT        NOT NULL,   -- scrypt, never the plain password
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Added on day 3 ---------------------------------------------------------------
+
+-- A duplicate is the same file read with the same encoding. Re-uploading the same
+-- bytes with a different encoding (to fix names) is a new, valid update.
+ALTER TABLE schedule_updates DROP CONSTRAINT IF EXISTS schedule_updates_file_sha256_key;
+CREATE UNIQUE INDEX IF NOT EXISTS schedule_updates_file_encoding_key ON schedule_updates (file_sha256, encoding);
