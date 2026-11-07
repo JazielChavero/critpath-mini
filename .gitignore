@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.env
+# Third-party sample schedules are not redistributed (see api/samples/README.md)
+api/samples/*.xer
