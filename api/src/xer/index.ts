@@ -9,8 +9,8 @@ export type ParseResult =
   | { ok: true; header: XerHeader; encoding: string; schedule: Schedule; warnings: Issue[] }
   | { ok: false; errors: Issue[]; warnings: Issue[] };
 
-export function parseXer(buf: Uint8Array): ParseResult {
-  const raw = readXer(buf);
+export function parseXer(buf: Uint8Array, opts: { encoding?: string } = {}): ParseResult {
+  const raw = readXer(buf, opts);
   const issues = new IssueList();
   issues.merge(raw.issues);
 

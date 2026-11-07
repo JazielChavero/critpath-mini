@@ -3,8 +3,8 @@
 A small learning project: upload a Primavera P6 schedule (`.xer`), get trustworthy
 metrics and a written summary that never invents a number.
 
-**Status — day 1 of 5:** the XER parser and the PostgreSQL import are done.
-Metrics, dashboard, AI summary and AWS deployment come next.
+**Status — day 2 of 5:** XER parser, PostgreSQL import, metrics and the HTTP API
+(login, upload, metrics) are done. Dashboard, AI summary and AWS deployment come next.
 
 ## Why the parser is built this way
 
@@ -19,6 +19,37 @@ Metrics, dashboard, AI summary and AWS deployment come next.
 - **Every problem is reported at once**, with line, table and field.
 - **Encoding.** Tries UTF-8 first, falls back to Windows-1252 (the usual P6 export).
 - **Atomic import.** One transaction per file; the same file can't be imported twice.
+
+## Metrics
+
+Every number comes from the formula table in `api/src/metrics/definitions.ts`
+(duration % complete, critical and negative-float activities, late starts/finishes,
+missing logic, baseline vs. forecast finish, ...), computed by a pure function.
+
+`tools/independent_metrics.py` re-implements the same table in Python with its own
+XER reader and shares no code with the app. Both produce identical values for all
+three sample files, and those values are the golden tests in `tests/metrics.test.ts`.
+
+Known limitations:
+- Floats are converted to days with the project calendar's hours per day; when the
+  file doesn't include it (older P6 versions), 8 h/day is assumed and flagged.
+- XER files don't declare their encoding. Detection is UTF-8, then Windows-1252;
+  an upload can force another one (e.g. `?encoding=windows-1256` for Arabic names).
+  Numbers, dates and codes are ASCII, so this only ever affects names.
+
+## API
+
+| Method | Path | |
+|---|---|---|
+| GET | `/health` | no login |
+| POST | `/auth/login` | `{ email, password }` → `{ token }` (12 h) |
+| GET | `/updates` | uploaded schedule updates |
+| POST | `/updates` | multipart, field `file`; 201 / 409 duplicate / 413 too large / 422 with every error |
+| GET | `/updates/:id/metrics` | metrics per project + the formula table |
+| GET | `/updates/:id/warnings` | warnings found on import |
+
+Passwords are hashed with scrypt; unknown emails and wrong passwords get the same
+answer in the same time.
 
 ## Checked against real files
 
@@ -39,9 +70,12 @@ cd api
 npm install
 cp .env.example .env               # then edit the database URLs
 
-npm test                           # parser tests (DB tests run if TEST_DATABASE_URL is set)
+npm test                           # all tests (DB/API tests run if TEST_DATABASE_URL is set)
 npm run inspect -- samples/airport.xer
-npm run import  -- samples/*.xer   # creates the tables and imports
+npm run import  -- samples/*.xer   # import from the command line
+
+npm run create-user -- you@example.com
+npm run dev                        # API on http://localhost:3000
 ```
 
 ## Layout
@@ -53,6 +87,12 @@ api/
   src/xer/issues.ts         errors and warnings
   src/db/schema.sql         tables (one "schedule update" per uploaded file)
   src/db/importSchedule.ts  transactional bulk import
-  src/cli/                  inspect / import commands
-  tests/                    unit, golden and database tests
+  src/metrics/definitions.ts  the formula table
+  src/metrics/compute.ts    metrics (pure function)
+  src/db/loadSchedule.ts    reads an update back from PostgreSQL
+  src/auth/passwords.ts     scrypt hashing
+  src/app.ts                HTTP API (Fastify)
+  src/cli/                  inspect / import / create-user commands
+  tests/                    unit, golden, database and API tests
+tools/independent_metrics.py  independent check of the metrics
 ```

@@ -86,3 +86,20 @@ CREATE TABLE IF NOT EXISTS import_warnings (
 );
 
 CREATE INDEX IF NOT EXISTS tasks_status_idx ON tasks (update_id, status);
+
+-- Added on day 2 ---------------------------------------------------------------
+
+-- Settings needed to compute metrics exactly like P6 would.
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS critical_path_type     TEXT    NOT NULL DEFAULT 'total_float';
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS critical_float_hrs     NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS calendar_hours_per_day NUMERIC;
+
+-- Who uploaded each file.
+ALTER TABLE schedule_updates ADD COLUMN IF NOT EXISTS uploaded_by INTEGER;
+
+CREATE TABLE IF NOT EXISTS users (
+  id            SERIAL PRIMARY KEY,
+  email         TEXT        NOT NULL UNIQUE,
+  password_hash TEXT        NOT NULL,   -- scrypt, never the plain password
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);

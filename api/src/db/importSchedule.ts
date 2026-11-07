@@ -25,8 +25,13 @@ export async function migrate(pool: pg.Pool): Promise<void> {
   await pool.query(sql);
 }
 
-export async function importXer(pool: pg.Pool, fileName: string, buf: Uint8Array): Promise<ImportResult> {
-  const parsed = parseXer(buf);
+export async function importXer(
+  pool: pg.Pool,
+  fileName: string,
+  buf: Uint8Array,
+  opts: { uploadedBy?: number; encoding?: string } = {},
+): Promise<ImportResult> {
+  const parsed = parseXer(buf, { encoding: opts.encoding });
   if (!parsed.ok) return { ok: false, reason: "invalid_file", errors: parsed.errors, warnings: parsed.warnings };
 
   const sha = createHash("sha256").update(buf).digest("hex");
@@ -39,15 +44,17 @@ export async function importXer(pool: pg.Pool, fileName: string, buf: Uint8Array
     await client.query("BEGIN");
 
     const { rows } = await client.query<{ id: number }>(
-      `INSERT INTO schedule_updates (file_name, file_sha256, p6_version, exported_on, encoding, warning_count)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [fileName, sha, header.version, header.exportDate, encoding, warnings.length],
+      `INSERT INTO schedule_updates (file_name, file_sha256, p6_version, exported_on, encoding, warning_count, uploaded_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [fileName, sha, header.version, header.exportDate, encoding, warnings.length, opts.uploadedBy ?? null],
     );
     const updateId = rows[0]!.id;
 
     await client.query(
-      `INSERT INTO projects (update_id, p6_id, short_name, data_date, planned_start, must_finish_by, scheduled_finish)
-       SELECT $1, * FROM unnest($2::text[], $3::text[], $4::timestamp[], $5::timestamp[], $6::timestamp[], $7::timestamp[])`,
+      `INSERT INTO projects (update_id, p6_id, short_name, data_date, planned_start, must_finish_by, scheduled_finish,
+         critical_path_type, critical_float_hrs, calendar_hours_per_day)
+       SELECT $1, * FROM unnest($2::text[], $3::text[], $4::timestamp[], $5::timestamp[], $6::timestamp[], $7::timestamp[],
+         $8::text[], $9::numeric[], $10::numeric[])`,
       [
         updateId,
         s.projects.map((p) => p.id),
@@ -56,6 +63,9 @@ export async function importXer(pool: pg.Pool, fileName: string, buf: Uint8Array
         s.projects.map((p) => p.plannedStart),
         s.projects.map((p) => p.mustFinishBy),
         s.projects.map((p) => p.scheduledFinish),
+        s.projects.map((p) => p.criticalPathType),
+        s.projects.map((p) => p.criticalFloatHrs),
+        s.projects.map((p) => p.calendarHoursPerDay),
       ],
     );
 

@@ -35,27 +35,32 @@ export interface XerHeader {
 export interface RawXer {
   header: XerHeader | null;
   tables: Map<string, RawTable>;
-  encoding: "utf-8" | "windows-1252";
+  /** "utf-8", "windows-1252", or whatever the caller forced. */
+  encoding: string;
   issues: IssueList;
 }
 
 /**
- * P6 usually exports Windows-1252 (Spanish accents, ° signs, etc.).
- * Newer exports can be UTF-8. We try strict UTF-8 first and fall back.
+ * P6 usually exports in the Windows code page of the machine that exported it
+ * (Windows-1252 for Spanish/English, Windows-1256 for Arabic, ...). Newer exports
+ * can be UTF-8. The file does not say which one it is, so: strict UTF-8 first,
+ * then Windows-1252. Callers that know better can force an encoding.
+ * Numbers, dates and codes are ASCII, so a wrong guess only affects names.
  */
-export function decodeXer(buf: Uint8Array): { text: string; encoding: RawXer["encoding"] } {
+export function decodeXer(buf: Uint8Array, forced?: string): { text: string; encoding: string } {
+  if (forced) return { text: new TextDecoder(forced).decode(buf).replace(/^\uFEFF/, ""), encoding: forced };
   try {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(buf);
-    return { text: text.replace(/^﻿/, ""), encoding: "utf-8" };
+    return { text: text.replace(/^\uFEFF/, ""), encoding: "utf-8" };
   } catch {
     return { text: new TextDecoder("windows-1252").decode(buf), encoding: "windows-1252" };
   }
 }
 
-export function readXer(buf: Uint8Array): RawXer {
+export function readXer(buf: Uint8Array, opts: { encoding?: string } = {}): RawXer {
   const issues = new IssueList();
   const tables = new Map<string, RawTable>();
-  const { text, encoding } = decodeXer(buf);
+  const { text, encoding } = decodeXer(buf, opts.encoding);
 
   if (text.trim().length === 0) {
     issues.error("EMPTY_FILE", "The file is empty.");

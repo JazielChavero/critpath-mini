@@ -25,6 +25,9 @@ describe("valid files", () => {
         plannedStart: "2024-01-08T08:00:00",
         mustFinishBy: null,
         scheduledFinish: "2024-12-20T17:00:00",
+        criticalPathType: "total_float",
+        criticalFloatHrs: 0,
+        calendarHoursPerDay: null, // this fixture has no CALENDAR table
       },
     ]);
     expect(wbs).toHaveLength(2);

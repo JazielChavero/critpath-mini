@@ -26,6 +26,12 @@ export interface Project {
   mustFinishBy: string | null;
   /** Finish date calculated by the last schedule run. */
   scheduledFinish: string | null;
+  /** How P6 marks activities as critical in this project. */
+  criticalPathType: "total_float" | "longest_path";
+  /** With "total_float": activities with total float <= this are critical. */
+  criticalFloatHrs: number;
+  /** Working hours per day of the project calendar, or null when the file doesn't say. */
+  calendarHoursPerDay: number | null;
 }
 
 export interface Wbs {
@@ -234,6 +240,16 @@ export function buildSchedule(raw: RawXer): { schedule: Schedule; issues: IssueL
     if (t && !checkRequiredFields(t, issues)) return { schedule, issues };
   }
 
+  // ---- Calendars (only to learn the project's working hours per day) ---------
+  const hoursPerDay = new Map<string, number>();
+  const calTable = raw.tables.get("CALENDAR");
+  if (calTable?.fields.includes("clndr_id") && calTable.fields.includes("day_hr_cnt")) {
+    rowsOf(calTable, issues, (r) => {
+      const h = r.num("day_hr_cnt");
+      if (h !== null && h > 0 && h <= 24) hoursPerDay.set(r.str("clndr_id"), h);
+    });
+  }
+
   // ---- Projects -------------------------------------------------------------
   const projectIds = new Set<string>();
   rowsOf(projectTable!, issues, (r) => {
@@ -247,6 +263,9 @@ export function buildSchedule(raw: RawXer): { schedule: Schedule; issues: IssueL
       plannedStart: r.date("plan_start_date"),
       mustFinishBy: r.date("plan_end_date"),
       scheduledFinish: r.date("scd_end_date"),
+      criticalPathType: r.str("critical_path_type") === "CT_DrivPath" ? "longest_path" : "total_float",
+      criticalFloatHrs: r.num("critical_drtn_hr_cnt") ?? 0,
+      calendarHoursPerDay: hoursPerDay.get(r.str("clndr_id")) ?? null,
     });
   });
 
