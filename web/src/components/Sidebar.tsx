@@ -5,9 +5,9 @@
 import { useRef, useState, type DragEvent } from "react";
 import type { UpdateSummary } from "../api";
 import { fmtDate, fmtInt, fmtUploaded } from "../format";
+import { useI18n } from "../i18n";
 
 export const ENCODINGS: { value: string; label: string }[] = [
-  { value: "", label: "Detect automatically" },
   { value: "windows-1256", label: "Arabic (Windows-1256)" },
   { value: "windows-1250", label: "Central European (Windows-1250)" },
   { value: "windows-1251", label: "Cyrillic (Windows-1251)" },
@@ -25,6 +25,7 @@ interface Props {
 }
 
 export function Sidebar({ updates, selectedId, onSelect, onUpload, uploading }: Props) {
+  const { t, lang } = useI18n();
   const input = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [encoding, setEncoding] = useState("");
@@ -52,13 +53,13 @@ export function Sidebar({ updates, selectedId, onSelect, onUpload, uploading }: 
       >
         {uploading ? (
           <p className="dropzone-title" role="status">
-            Checking {uploading}…
+            {t("checking", { file: uploading })}
           </p>
         ) : (
           <>
-            <p className="dropzone-title">Drop a P6 export (.xer) here</p>
+            <p className="dropzone-title">{t("dropTitle")}</p>
             <button type="button" className="btn btn-quiet" onClick={() => input.current?.click()}>
-              Choose file
+              {t("chooseFile")}
             </button>
           </>
         )}
@@ -74,8 +75,9 @@ export function Sidebar({ updates, selectedId, onSelect, onUpload, uploading }: 
         />
       </div>
       <label className="encoding">
-        <span>Character set for names</span>
+        <span>{t("charset")}</span>
         <select value={encoding} onChange={(e) => setEncoding(e.target.value)} disabled={!!uploading}>
+          <option value="">{t("charsetAuto")}</option>
           {ENCODINGS.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
@@ -84,9 +86,9 @@ export function Sidebar({ updates, selectedId, onSelect, onUpload, uploading }: 
         </select>
       </label>
 
-      <h2 className="sidebar-title">Schedule updates</h2>
+      <h2 className="sidebar-title">{t("updatesTitle")}</h2>
       {updates.length === 0 ? (
-        <p className="sidebar-empty">Nothing uploaded yet. Upload this month's schedule to see how the project is doing.</p>
+        <p className="sidebar-empty">{t("updatesEmpty")}</p>
       ) : (
         <ol className="update-list">
           {updates.map((u) => (
@@ -98,9 +100,9 @@ export function Sidebar({ updates, selectedId, onSelect, onUpload, uploading }: 
                 onClick={() => onSelect(u.id)}
               >
                 <span className="update-project">{u.project ?? u.file_name}</span>
-                <span className="update-date">Data date {fmtDate(u.data_date)}</span>
+                <span className="update-date">{t("dataDateOn", { date: fmtDate(u.data_date, lang) })}</span>
                 <span className="update-meta">
-                  {fmtInt(u.activities)} activities, uploaded {fmtUploaded(u.uploaded_at)}
+                  {t("updateMeta", { n: fmtInt(u.activities, lang), when: fmtUploaded(u.uploaded_at, lang) })}
                 </span>
               </button>
             </li>

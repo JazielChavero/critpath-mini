@@ -12,11 +12,22 @@ import {
   type UploadResult,
 } from "./api";
 import { Dashboard } from "./components/Dashboard";
+import { fmtInt } from "./format";
 import { IssueList } from "./components/IssueList";
 import { Login } from "./components/Login";
 import { Sidebar } from "./components/Sidebar";
+import { I18nProvider, LangToggle, useI18n } from "./i18n";
 
 export default function App() {
+  return (
+    <I18nProvider>
+      <Main />
+    </I18nProvider>
+  );
+}
+
+function Main() {
+  const { t } = useI18n();
   const [loggedIn, setLoggedIn] = useState(() => !!session.get());
   const [updates, setUpdates] = useState<UpdateSummary[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -97,9 +108,12 @@ export default function App() {
     <div className="shell">
       <header className="topbar">
         <span className="brand">CritPath Mini</span>
-        <button type="button" className="btn btn-quiet" onClick={logout}>
-          Log out
-        </button>
+        <div className="topbar-actions">
+          <LangToggle />
+          <button type="button" className="btn btn-quiet" onClick={logout}>
+            {t("logOut")}
+          </button>
+        </div>
       </header>
       <Sidebar
         updates={updates}
@@ -120,12 +134,12 @@ export default function App() {
         )}
         {selectedId === null && !uploadResult ? (
           <div className="empty">
-            <h1>No schedule yet</h1>
-            <p>Upload a Primavera P6 export (.xer) on the left. Its metrics will appear here.</p>
+            <h1>{t("emptyTitle")}</h1>
+            <p>{t("emptyBody")}</p>
           </div>
         ) : loading && !metrics ? (
           <p className="loading" role="status">
-            Loading metrics…
+            {t("loading")}
           </p>
         ) : metrics ? (
           <div className={loading ? "is-refreshing" : ""}>
@@ -138,26 +152,26 @@ export default function App() {
 }
 
 function UploadNotice({ file, result, onClose }: { file: string; result: UploadResult; onClose: () => void }) {
+  const { t, lang } = useI18n();
+  const close = (
+    <button type="button" className="btn btn-quiet" onClick={onClose}>
+      {t("dismiss")}
+    </button>
+  );
   if (result.kind === "ok") {
+    const n = fmtInt(result.activities, lang);
     return (
       <div className="banner banner-ok" role="status">
-        <p>
-          Imported {file}: {result.activities.toLocaleString("en-US")} activities
-          {result.warnings.length > 0 ? `, ${result.warnings.length} warnings to check below.` : "."}
-        </p>
-        <button type="button" className="btn btn-quiet" onClick={onClose}>
-          Dismiss
-        </button>
+        <p>{result.warnings.length > 0 ? t("importedWarn", { file, n, w: result.warnings.length }) : t("imported", { file, n })}</p>
+        {close}
       </div>
     );
   }
   if (result.kind === "duplicate") {
     return (
       <div className="banner" role="status">
-        <p>{file} was already uploaded with this character set. Showing that update.</p>
-        <button type="button" className="btn btn-quiet" onClick={onClose}>
-          Dismiss
-        </button>
+        <p>{t("duplicate", { file })}</p>
+        {close}
       </div>
     );
   }
@@ -165,13 +179,11 @@ function UploadNotice({ file, result, onClose }: { file: string; result: UploadR
     <div className="banner banner-error" role="alert">
       <div>
         <p>
-          <strong>{file} wasn't imported.</strong> {result.kind === "invalid" ? "Nothing was saved. Fix these problems in P6 and export again:" : result.message}
+          <strong>{t("notImported", { file })}</strong> {result.kind === "invalid" ? t("nothingSaved") : result.message}
         </p>
         {result.kind === "invalid" && <IssueList issues={result.errors} />}
       </div>
-      <button type="button" className="btn btn-quiet" onClick={onClose}>
-        Dismiss
-      </button>
+      {close}
     </div>
   );
 }

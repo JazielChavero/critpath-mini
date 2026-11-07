@@ -1,11 +1,6 @@
 import type { ActivityRef } from "../api";
 import { fmtDate, fmtInt } from "../format";
-
-const STATUS: Record<ActivityRef["status"], string> = {
-  not_started: "Not started",
-  in_progress: "In progress",
-  completed: "Completed",
-};
+import { useI18n } from "../i18n";
 
 interface Props {
   activities: ActivityRef[];
@@ -15,14 +10,15 @@ interface Props {
 }
 
 export function CriticalTable({ activities, total, hoursPerDay, hoursPerDayAssumed }: Props) {
+  const { t, lang } = useI18n();
   return (
     <section className="critical" aria-labelledby="critical-title">
       <div className="section-head">
-        <h3 id="critical-title">Critical activities</h3>
+        <h3 id="critical-title">{t("criticalTitle")}</h3>
         <p>
           {total === 0
-            ? "No incomplete activity is critical."
-            : `Showing ${fmtInt(Math.min(activities.length, total))} of ${fmtInt(total)}, lowest float first.`}
+            ? t("criticalNone")
+            : t("criticalShowing", { shown: fmtInt(Math.min(activities.length, total), lang), total: fmtInt(total, lang) })}
         </p>
       </div>
       {activities.length > 0 && (
@@ -30,11 +26,11 @@ export function CriticalTable({ activities, total, hoursPerDay, hoursPerDayAssum
           <table>
             <thead>
               <tr>
-                <th scope="col">Activity</th>
-                <th scope="col">Status</th>
-                <th scope="col" className="num">Total float</th>
-                <th scope="col" className="num">Baseline finish</th>
-                <th scope="col" className="num">Early finish</th>
+                <th scope="col">{t("colActivity")}</th>
+                <th scope="col">{t("colStatus")}</th>
+                <th scope="col" className="num">{t("colFloat")}</th>
+                <th scope="col" className="num">{t("colBaselineFinish")}</th>
+                <th scope="col" className="num">{t("colEarlyFinish")}</th>
               </tr>
             </thead>
             <tbody>
@@ -44,24 +40,19 @@ export function CriticalTable({ activities, total, hoursPerDay, hoursPerDayAssum
                     <span className="act-code">{a.code}</span>
                     <span className="act-name" dir="auto">{a.name}</span>
                   </td>
-                  <td>{STATUS[a.status]}</td>
+                  <td>{t(`status_${a.status}`)}</td>
                   <td className={`num ${a.totalFloatDays !== null && a.totalFloatDays < 0 ? "is-alert" : ""}`}>
                     {a.totalFloatDays === null ? "—" : `${a.totalFloatDays} d`}
                   </td>
-                  <td className="num">{fmtDate(a.baselineFinish)}</td>
-                  <td className="num">{fmtDate(a.earlyFinish)}</td>
+                  <td className="num">{fmtDate(a.baselineFinish, lang)}</td>
+                  <td className="num">{fmtDate(a.earlyFinish, lang)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
-      {hoursPerDayAssumed && (
-        <p className="note">
-          Float is shown in days assuming {hoursPerDay} working hours per day: this file doesn't include the calendar's
-          hours.
-        </p>
-      )}
+      {hoursPerDayAssumed && <p className="note">{t("hoursAssumed", { h: hoursPerDay })}</p>}
     </section>
   );
 }

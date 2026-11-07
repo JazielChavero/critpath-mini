@@ -5,6 +5,7 @@
  */
 import type { ReactNode } from "react";
 import { dayNumber, fmtDate, fmtValue } from "../format";
+import { useI18n } from "../i18n";
 
 interface Props {
   plannedStart: string | null;
@@ -17,6 +18,7 @@ interface Props {
 type Side = "above" | "below";
 
 export function Timeline({ plannedStart, dataDate, baselineFinish, forecastFinish, varianceDays }: Props) {
+  const { t, lang } = useI18n();
   const points = [plannedStart, dataDate, baselineFinish, forecastFinish].filter((d): d is string => !!d);
   if (points.length < 2) return null;
 
@@ -39,7 +41,7 @@ export function Timeline({ plannedStart, dataDate, baselineFinish, forecastFinis
   }
 
   return (
-    <figure className="tl" aria-label="Project timeline">
+    <figure className="tl" aria-label={t("timeline")}>
       <div className="tl-track">
         <div className="tl-rail" />
         {plannedStart && dataDate && (
@@ -50,24 +52,24 @@ export function Timeline({ plannedStart, dataDate, baselineFinish, forecastFinis
         )}
         {dataDate && (
           <Point at={frac(dataDate)} kind="datadate" side="above">
-            Data date <strong>{fmtDate(dataDate)}</strong>
+            {t("dataDate")} <strong>{fmtDate(dataDate, lang)}</strong>
           </Point>
         )}
         {plannedStart && (
           <Point at={frac(plannedStart)} kind="start" side="below">
-            Planned start <strong>{fmtDate(plannedStart)}</strong>
+            {t("plannedStart")} <strong>{fmtDate(plannedStart, lang)}</strong>
           </Point>
         )}
         {baselineFinish && (
           <Point at={frac(baselineFinish)} kind="baseline" side={baselineSide}>
-            Baseline finish <strong>{fmtDate(baselineFinish)}</strong>
+            {t("baselineFinish")} <strong>{fmtDate(baselineFinish, lang)}</strong>
           </Point>
         )}
         {forecastFinish && (
           <Point at={frac(forecastFinish)} kind={late ? "forecast is-late" : "forecast"} side={forecastSide}>
-            Forecast finish <strong>{fmtDate(forecastFinish)}</strong>
+            {t("forecastFinish")} <strong>{fmtDate(forecastFinish, lang)}</strong>
             {varianceDays !== null && (
-              <em className={late ? "is-late" : varianceDays === 0 ? "is-even" : ""}>{fmtValue(varianceDays, "days")} vs baseline</em>
+              <em className={late ? "is-late" : varianceDays === 0 ? "is-even" : ""}>{t("vsBaseline", { days: fmtValue(varianceDays, "days", lang) })}</em>
             )}
           </Point>
         )}

@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from "react";
-import { login } from "../api";
+import { login, LoginError } from "../api";
+import { LangToggle, useI18n } from "../i18n";
 
 export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +17,8 @@ export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
       await login(email, password);
       onLoggedIn();
     } catch (err) {
-      setError((err as Error).message);
+      const wrong = err instanceof LoginError && err.message === "wrong_credentials";
+      setError(t(wrong ? "wrongLogin" : "loginFailed"));
     } finally {
       setBusy(false);
     }
@@ -23,15 +26,16 @@ export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
 
   return (
     <main className="login">
+      <LangToggle className="login-lang" />
       <form onSubmit={submit} className="login-form">
         <h1 className="brand">CritPath Mini</h1>
-        <p className="login-intro">Monthly P6 schedule updates, checked and summarised.</p>
+        <p className="login-intro">{t("tagline")}</p>
         <label>
-          <span>Email</span>
+          <span>{t("email")}</span>
           <input type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
         <label>
-          <span>Password</span>
+          <span>{t("password")}</span>
           <input
             type="password"
             autoComplete="current-password"
@@ -46,7 +50,7 @@ export function Login({ onLoggedIn }: { onLoggedIn: () => void }) {
           </p>
         )}
         <button type="submit" className="btn btn-primary" disabled={busy}>
-          {busy ? "Logging in…" : "Log in"}
+          {busy ? t("loggingIn") : t("logIn")}
         </button>
       </form>
     </main>

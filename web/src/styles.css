@@ -106,6 +106,12 @@ select {
   display: grid;
   place-items: center;
   padding: 1rem;
+  position: relative;
+}
+.login-lang {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
 }
 .login-form {
   width: min(22rem, 100%);
@@ -155,6 +161,10 @@ select {
   padding: 0.6rem 1.25rem;
   background: var(--graphite);
   color: var(--surface);
+}
+.topbar-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 .topbar .btn-quiet {
   border-color: color-mix(in srgb, var(--surface) 35%, transparent);

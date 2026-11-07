@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Issue, MetricsResponse, ProjectMetrics } from "../api";
-import { fmtDate, fmtInt } from "../format";
+import { fmtDate, fmtDecimal, fmtInt } from "../format";
+import { useI18n, type TKey } from "../i18n";
 import { CriticalTable } from "./CriticalTable";
 import { IssueList } from "./IssueList";
 import { MetricRows } from "./MetricRows";
@@ -11,15 +12,15 @@ const n = (v: unknown) => (typeof v === "number" ? v : 0);
 const s = (v: unknown) => (typeof v === "string" ? v : null);
 
 /** One plain sentence about the finish date, built only from computed values. */
-function verdict(p: ProjectMetrics): string {
+function verdict(p: ProjectMetrics, t: ReturnType<typeof useI18n>["t"], lang: ReturnType<typeof useI18n>["lang"]): string {
   const forecast = s(p.values.forecast_finish);
   const variance = p.values.finish_variance_days;
-  if (!forecast) return "The file has no forecast finish date.";
-  if (typeof variance !== "number") return `Forecast to finish on ${fmtDate(forecast)}.`;
-  const days = Math.abs(variance).toFixed(1);
-  if (variance > 0) return `Forecast to finish on ${fmtDate(forecast)}, ${days} days after the baseline.`;
-  if (variance < 0) return `Forecast to finish on ${fmtDate(forecast)}, ${days} days ahead of the baseline.`;
-  return `Forecast to finish on ${fmtDate(forecast)}, exactly on the baseline.`;
+  if (!forecast) return t("noForecast");
+  const date = fmtDate(forecast, lang);
+  if (typeof variance !== "number") return t("forecastOn", { date });
+  const days = fmtDecimal(Math.abs(variance), lang);
+  const key: TKey = variance > 0 ? "forecastLate" : variance < 0 ? "forecastEarly" : "forecastEven";
+  return t(key, { date, days });
 }
 
 interface Props {
@@ -28,6 +29,7 @@ interface Props {
 }
 
 export function Dashboard({ data, warnings }: Props) {
+  const { t, lang } = useI18n();
   const [projectIdx, setProjectIdx] = useState(0);
   const p = data.projects[projectIdx] ?? data.projects[0];
   if (!p) return <p className="empty">This update has no projects.</p>;
@@ -37,11 +39,11 @@ export function Dashboard({ data, warnings }: Props) {
     <article className="dashboard">
       <header className="dash-head">
         <p className="dash-file">
-          Update #{data.update.id}, {data.update.file_name}, P6 {data.update.p6_version}
+          {t("updateLine", { id: data.update.id, file: data.update.file_name, version: data.update.p6_version })}
         </p>
         <h1 className="dash-project">{p.projectName}</h1>
         {data.projects.length > 1 && (
-          <div className="project-tabs" role="tablist" aria-label="Projects in this file">
+          <div className="project-tabs" role="tablist" aria-label={t("projectsInFile")}>
             {data.projects.map((pr, i) => (
               <button key={pr.projectId} role="tab" aria-selected={i === projectIdx} onClick={() => setProjectIdx(i)}>
                 {pr.projectName}
@@ -49,7 +51,7 @@ export function Dashboard({ data, warnings }: Props) {
             ))}
           </div>
         )}
-        <p className="dash-verdict">{verdict(p)}</p>
+        <p className="dash-verdict">{verdict(p, t, lang)}</p>
       </header>
 
       <Timeline
@@ -69,14 +71,14 @@ export function Dashboard({ data, warnings }: Props) {
 
       <div className="metric-columns">
         <MetricRows
-          title="Where the schedule is at risk"
+          title={t("atRisk")}
           keys={["critical_activities", "negative_float_activities", "late_starts", "late_finishes"]}
           values={v}
           definitions={data.definitions}
           alertWhenPositive={["negative_float_activities", "late_starts", "late_finishes"]}
         />
         <MetricRows
-          title="Logic and scope"
+          title={t("logicScope")}
           keys={["missing_predecessors", "missing_successors", "total_activities", "milestones"]}
           values={v}
           definitions={data.definitions}
@@ -93,11 +95,11 @@ export function Dashboard({ data, warnings }: Props) {
 
       <section className="warnings" aria-labelledby="warn-title">
         <div className="section-head">
-          <h3 id="warn-title">Import warnings</h3>
+          <h3 id="warn-title">{t("warningsTitle")}</h3>
           <p>
             {warnings.length === 0
-              ? "None."
-              : `${fmtInt(data.update.warning_count)} found. The file was imported, but check these.`}
+              ? t("warningsNone")
+              : t("warningsSome", { n: fmtInt(data.update.warning_count, lang) })}
           </p>
         </div>
         {warnings.length > 0 && <IssueList issues={warnings} />}

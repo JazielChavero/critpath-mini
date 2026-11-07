@@ -5,6 +5,7 @@
 import { useState } from "react";
 import type { MetricDefinition } from "../api";
 import { fmtValue } from "../format";
+import { useI18n } from "../i18n";
 
 interface Props {
   title: string;
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function MetricRows({ title, keys, values, definitions, alertWhenPositive = [] }: Props) {
+  const { t, lang } = useI18n();
   const [open, setOpen] = useState<string | null>(null);
   const byKey = new Map(definitions.map((d) => [d.key, d]));
 
@@ -37,16 +39,16 @@ export function MetricRows({ title, keys, values, definitions, alertWhenPositive
                   aria-expanded={isOpen}
                   aria-controls={`f-${key}`}
                   onClick={() => setOpen(isOpen ? null : key)}
-                  title="Show how this is calculated"
+                  title={t("showFormula")}
                 >
-                  <span>{def.label}</span>
+                  <span>{lang === "es" ? def.es.label : def.label}</span>
                   <span className="metric-chevron" aria-hidden="true" />
                 </button>
               </dt>
-              <dd className={`metric-value ${alert ? "is-alert" : ""}`}>{fmtValue(v, def.unit)}</dd>
+              <dd className={`metric-value ${alert ? "is-alert" : ""}`}>{fmtValue(v, def.unit, lang)}</dd>
               {isOpen && (
                 <dd className="metric-formula" id={`f-${key}`}>
-                  {def.formula}
+                  {lang === "es" ? def.es.formula : def.formula}
                 </dd>
               )}
             </div>

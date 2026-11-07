@@ -30,6 +30,7 @@ export interface MetricDefinition {
   label: string;
   unit: "count" | "percent" | "date" | "days";
   formula: string;
+  es: { label: string; formula: string };
 }
 
 export interface ActivityRef {
@@ -84,6 +85,7 @@ export const session = {
 };
 
 export class AuthError extends Error {}
+export class LoginError extends Error {}
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = session.get();
@@ -107,7 +109,8 @@ export async function login(email: string, password: string): Promise<void> {
     body: JSON.stringify({ email, password }),
   });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error ?? "Could not log in.");
+  if (res.status === 401) throw new LoginError("wrong_credentials");
+  if (!res.ok) throw new LoginError("failed");
   session.set(body.token);
 }
 
