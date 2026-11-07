@@ -18,7 +18,10 @@ import { IssueList } from "./issues.js";
 export interface RawTable {
   name: string;
   fields: string[];
+  /** Rows keyed by field name. Empty for tables the caller didn't ask to keep. */
   rows: Record<string, string>[];
+  /** Number of %R rows, counted for every table, kept or not. */
+  rowCount: number;
   /** Line where the %T for this table appears. */
   line: number;
   /** Line number of each row, same order as `rows` (used in error messages). */
@@ -57,7 +60,33 @@ export function decodeXer(buf: Uint8Array, forced?: string): { text: string; enc
   }
 }
 
-export function readXer(buf: Uint8Array, opts: { encoding?: string } = {}): RawXer {
+export interface ReadOptions {
+  encoding?: string;
+  /**
+   * Tables whose rows are kept in memory. Every other table is still checked
+   * line by line (structure, column count) but its rows are not stored.
+   * A large export can have 100k+ rows of resource and activity-code
+   * assignments that the metrics never use; keeping them would need hundreds
+   * of MB. Omit to keep every table.
+   */
+  keepTables?: ReadonlySet<string>;
+}
+
+/** Yields [lineNumber, line] without splitting the whole file into an array. */
+function* eachLine(text: string): Generator<[number, string]> {
+  let start = 0;
+  let n = 0;
+  while (start <= text.length) {
+    let end = text.indexOf("\n", start);
+    if (end === -1) end = text.length;
+    let line = text.slice(start, end);
+    if (line.endsWith("\r")) line = line.slice(0, -1);
+    yield [++n, line];
+    start = end + 1;
+  }
+}
+
+export function readXer(buf: Uint8Array, opts: ReadOptions = {}): RawXer {
   const issues = new IssueList();
   const tables = new Map<string, RawTable>();
   const { text, encoding } = decodeXer(buf, opts.encoding);
@@ -67,11 +96,13 @@ export function readXer(buf: Uint8Array, opts: { encoding?: string } = {}): RawX
     return { header: null, tables, encoding, issues };
   }
 
-  // Normalise Windows (CRLF) and old Mac (CR) line endings.
-  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  // Old Mac line endings (CR only) are rare enough to normalise up front;
+  // Windows CRLF is handled line by line in eachLine().
+  const body = text.includes("\n") ? text : text.replace(/\r/g, "\n");
+  const lines = eachLine(body);
 
   let header: XerHeader | null = null;
-  const first = lines[0] ?? "";
+  const first = lines.next().value?.[1] ?? "";
   if (!first.startsWith("ERMHDR")) {
     issues.error(
       "NOT_XER",
@@ -89,9 +120,7 @@ export function readXer(buf: Uint8Array, opts: { encoding?: string } = {}): RawX
   // so one problem is reported once instead of producing a cascade of errors.
   let skippingTable = false;
 
-  for (let i = 1; i < lines.length; i++) {
-    const lineNo = i + 1;
-    const line = lines[i] ?? "";
+  for (const [lineNo, line] of lines) {
     if (line === "") continue; // blank lines (usually the trailing newline)
 
     if (sawEnd) {
@@ -101,10 +130,29 @@ export function readXer(buf: Uint8Array, opts: { encoding?: string } = {}): RawX
       break;
     }
 
-    const parts = line.split("\t");
-    const tag = parts[0];
+    const tab = line.indexOf("\t");
+    const tag = tab === -1 ? line : line.slice(0, tab);
 
     if (skippingTable && (tag === "%F" || tag === "%R")) continue;
+
+    // Rows of tables we don't keep: check the column count without building objects.
+    if (tag === "%R" && current && current.fields.length > 0 && opts.keepTables && !opts.keepTables.has(current.name)) {
+      let values = 0;
+      for (let i = tab; i !== -1; i = line.indexOf("\t", i + 1)) values++;
+      if (values !== current.fields.length) {
+        issues.error(
+          "ROW_FIELD_COUNT",
+          `Row has ${plural(values, "value")} but table ${current.name} has ${plural(current.fields.length, "column")}. ` +
+            `The file may be truncated or edited by hand.`,
+          { line: lineNo, table: current.name },
+        );
+      } else {
+        current.rowCount++;
+      }
+      continue;
+    }
+
+    const parts = line.split("\t");
 
     switch (tag) {
       case "%T": {
@@ -125,7 +173,7 @@ export function readXer(buf: Uint8Array, opts: { encoding?: string } = {}): RawX
           skippingTable = true;
           break;
         }
-        current = { name, fields: [], rows: [], line: lineNo, rowLines: [] };
+        current = { name, fields: [], rows: [], rowCount: 0, line: lineNo, rowLines: [] };
         tables.set(name, current);
         break;
       }
@@ -175,6 +223,7 @@ export function readXer(buf: Uint8Array, opts: { encoding?: string } = {}): RawX
         current.fields.forEach((f, idx) => (row[f] = values[idx] ?? ""));
         current.rows.push(row);
         current.rowLines.push(lineNo);
+        current.rowCount++;
         break;
       }
       case "%E":

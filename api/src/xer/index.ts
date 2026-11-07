@@ -9,8 +9,11 @@ export type ParseResult =
   | { ok: true; header: XerHeader; encoding: string; schedule: Schedule; warnings: Issue[] }
   | { ok: false; errors: Issue[]; warnings: Issue[] };
 
+/** The only tables the schedule model reads; rows of all others are checked but not kept. */
+export const TABLES_USED: ReadonlySet<string> = new Set(["PROJECT", "PROJWBS", "TASK", "TASKPRED", "CALENDAR"]);
+
 export function parseXer(buf: Uint8Array, opts: { encoding?: string } = {}): ParseResult {
-  const raw = readXer(buf, opts);
+  const raw = readXer(buf, { ...opts, keepTables: TABLES_USED });
   const issues = new IssueList();
   issues.merge(raw.issues);
 

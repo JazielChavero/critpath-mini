@@ -36,9 +36,13 @@ COPY ai/app ai/app
 COPY --from=web /app/web/dist web/dist
 COPY deploy/start.sh deploy/start.sh
 
+# NODE_OPTIONS caps the JS heap so the process garbage-collects early instead of
+# growing until a 512 MB container (Render free) kills it. Measured peak for the
+# whole container while importing a 6,977-activity / 18 MB schedule: ~390 MB.
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
-    PORT=10000
+    PORT=10000 \
+    NODE_OPTIONS=--max-old-space-size=256
 
 # Run as the unprivileged "node" user that the base image provides
 RUN chown -R node:node /app

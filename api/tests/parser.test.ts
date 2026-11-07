@@ -110,6 +110,13 @@ describe("broken files are rejected with a clear reason", () => {
     expect(r.ok ? null : r.errors[0]!.line).toBe(1 + PROJECT.length + 4 + 3); // header + PROJECT + WBS + 3rd TASK line
   });
 
+  it("a truncated row in a table we don't keep (e.g. resources) still rejects the file", () => {
+    const pred = [...PRED, "%T\tTASKRSRC", "%F\ttaskrsrc_id\ttask_id\trsrc_id", "%R\t1\t1000\t7", "%R\t2\t1000"];
+    const r = parseXer(utf8(xer({ pred })));
+    expect(codes(r)).toEqual(["ROW_FIELD_COUNT"]);
+    expect(r.ok ? null : r.errors[0]).toMatchObject({ table: "TASKRSRC" });
+  });
+
   it("row before column names", () => {
     const tasks = ["%T\tTASK", taskRow(), TASK_FIELDS];
     expect(codes(parseXer(utf8(xer({ tasks }))))).toContain("ROW_WITHOUT_FIELDS");
